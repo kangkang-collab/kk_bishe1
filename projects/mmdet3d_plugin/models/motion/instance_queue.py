@@ -27,7 +27,9 @@ class InstanceQueue(nn.Module):
 
         kernel_size = tuple([int(x / 2) for x in feature_map_scale])
         self.ego_feature_encoder = nn.Sequential(
-            nn.Conv2d(embed_dims, embed_dims, 3, stride=1, padding=1, bias=False),
+            # nn.Conv2d(embed_dims, embed_dims, 3, stride=1, padding=1, bias=False),
+            # 一阶段权重限制，只能改成512个channels
+            nn.Conv2d(embed_dims*2, embed_dims, 3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(embed_dims),
             nn.Conv2d(embed_dims, embed_dims, 3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(embed_dims),
@@ -168,7 +170,7 @@ class InstanceQueue(nn.Module):
         feature_map = feature_maps_inv[0][-1][:, 0]
         ego_feature = self.ego_feature_encoder(feature_map)
         ego_feature = ego_feature.unsqueeze(1).squeeze(-1).squeeze(-1)
-
+  
         ego_anchor = torch.tile(
             self.ego_anchor[None], (batch_size, 1, 1)
         )

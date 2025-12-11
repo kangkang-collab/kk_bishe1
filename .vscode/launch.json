@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug SparseDrive",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "1",
+                "PYTHONPATH": "${workspaceFolder}/projects:${workspaceFolder}"
+            },
+            "args": [
+                "projects/configs/sparsedrive_small_stage1.py",
+                "--launcher",
+                "none",  
+                "--deterministic"
+            ]
+        }
+    ]
+}

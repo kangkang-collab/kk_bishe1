@@ -2,7 +2,9 @@
 from __future__ import division
 import sys
 import os
+os.environ["MMCV_DISABLE_YAPF"] = "1"
 
+import os.path as osp
 print(sys.executable, os.path.abspath(__file__))
 # import init_paths # for conda pkgs submitting method
 import argparse
@@ -13,7 +15,6 @@ import torch
 import warnings
 from mmcv import Config, DictAction
 from mmcv.runner import get_dist_info, init_dist
-from os import path as osp
 
 from mmdet import __version__ as mmdet_version
 from mmdet.apis import train_detector
@@ -221,7 +222,11 @@ def main():
     # create work_dir
     mmcv.mkdir_or_exist(osp.abspath(cfg.work_dir))
     # dump config
-    cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)))
+    # cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)))
+    # cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)), dump_type='raw')
+    with open(osp.join(cfg.work_dir, osp.basename(args.config)), 'w') as f:
+        f.write(cfg.text)  # 纯文本，不格式化
+    # cfg.pretty_text
     # init the logger before other steps
     timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
     log_file = osp.join(cfg.work_dir, f"{timestamp}.log")
@@ -243,11 +248,12 @@ def main():
         "Environment info:\n" + dash_line + env_info + "\n" + dash_line
     )
     meta["env_info"] = env_info
-    meta["config"] = cfg.pretty_text
+    # meta["config"] = cfg.pretty_text
+    meta["config"] = cfg.text
 
     # log some basic info
     logger.info(f"Distributed training: {distributed}")
-    logger.info(f"Config:\n{cfg.pretty_text}")
+    # logger.info(f"Config:\n{cfg.pretty_text}")
 
     # set random seeds
     if args.seed is not None:
@@ -264,7 +270,7 @@ def main():
         cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get("test_cfg")
     )
     model.init_weights()
-    logger.info(f"Model:\n{model}")
+    # logger.info(f"Model:\n{model}")
 
     cfg.data.train.work_dir = cfg.work_dir
     cfg.data.val.work_dir = cfg.work_dir
@@ -287,7 +293,7 @@ def main():
         # checkpoints as meta data
         cfg.checkpoint_config.meta = dict(
             mmdet_version=mmdet_version,
-            config=cfg.pretty_text,
+            config=cfg.text,
             CLASSES=datasets[0].CLASSES,
         )
     # add an attribute for visualization convenience

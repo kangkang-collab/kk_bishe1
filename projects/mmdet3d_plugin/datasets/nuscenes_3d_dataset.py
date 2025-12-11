@@ -260,7 +260,9 @@ class NuScenes3DDataset(Dataset):
             aug_config = self.get_augmentation()
         data = self.get_data_info(idx)
         data["aug_config"] = aug_config
+        # print(f"处理前 keys: {data.keys()}")
         data = self.pipeline(data)
+        # print(f"处理后 keys: {data.keys()}")
         return data
 
     def get_cat_ids(self, idx):

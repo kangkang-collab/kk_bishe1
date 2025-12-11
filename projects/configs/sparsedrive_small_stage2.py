@@ -1,6 +1,15 @@
+from mmdet.models import BACKBONES
+from projects.mmdet3d_plugin.models.transfuser_backbone import TransfuserBackbone
+custom_imports = dict(
+    imports=[
+        'projects.mmdet3d_plugin.datasets.pipelines.wrap_points'
+    ],
+    allow_failed_imports=False
+)
 # ================ base config ===================
-version = 'mini'
+# version = 'mini'
 version = 'trainval'
+version = 'mini'
 length = {'trainval': 28130, 'mini': 323}
 
 plugin = True
@@ -9,11 +18,13 @@ dist_params = dict(backend="nccl")
 log_level = "INFO"
 work_dir = None
 
-total_batch_size = 48
-num_gpus = 8
+# total_batch_size = 48
+# num_gpus = 8
+total_batch_size = 16  
+num_gpus = 2
 batch_size = total_batch_size // num_gpus
 num_iters_per_epoch = int(length[version] // (num_gpus * batch_size))
-num_epochs = 10
+num_epochs = 5
 checkpoint_epoch_interval = 10
 
 checkpoint_config = dict(
@@ -62,7 +73,7 @@ ego_fut_ts = 6
 ego_fut_mode = 6
 queue_length = 4 # history + current
 
-embed_dims = 256
+embed_dims = 256 # 256
 num_groups = 8
 num_decoder = 6
 num_single_frame_decoder = 1
@@ -89,27 +100,34 @@ model = dict(
     type="SparseDrive",
     use_grid_mask=True,
     use_deformable_func=use_deformable_func,
+    # find_unused_parameters=True,
     img_backbone=dict(
-        type="ResNet",
-        depth=50,
-        num_stages=4,
-        frozen_stages=-1,
-        norm_eval=False,
-        style="pytorch",
-        with_cp=True,
-        out_indices=(0, 1, 2, 3),
-        norm_cfg=dict(type="BN", requires_grad=True),
-        pretrained="ckpt/resnet50-19c8e357.pth",
-    ),
-    img_neck=dict(
-        type="FPN",
-        num_outs=num_levels,
-        start_level=0,
-        out_channels=embed_dims,
-        add_extra_convs="on_output",
-        relu_before_extra_convs=True,
-        in_channels=[256, 512, 1024, 2048],
-    ),
+        type="TransfuserBackbone",
+        image_architecture='resnet34',   
+        lidar_architecture='resnet18',   
+        use_velocity=True,
+        perception_output_features=512, # 512
+        bev_features_chanels=512, # 512
+        bev_upsample_factor=2,
+        img_vert_anchors=5,
+        img_horz_anchors=22,
+        lidar_vert_anchors=8,
+        lidar_horz_anchors=8,
+        seq_len=1,
+        n_head=8,
+        block_exp=4,
+        n_layer=2,
+        embd_pdrop=0.1,
+        attn_pdrop=0.1,
+        resid_pdrop=0.1,
+        gpt_linear_layer_init_mean=0.0,
+        gpt_linear_layer_init_std=0.02,
+        gpt_layer_norm_init_weight=1.0,
+        use_point_pillars=False,
+        lidar_seq_len=1,
+        use_target_point_image=False,
+    ),   
+    # img_neck=None,
     depth_branch=dict(  # for auxiliary supervision only
         type="DenseDepthNet",
         embed_dims=embed_dims,
@@ -127,7 +145,7 @@ model = dict(
                 type="InstanceBank",
                 num_anchor=900,
                 embed_dims=embed_dims,
-                anchor="data/kmeans/kmeans_det_900.npy",
+                anchor="data/kmeansmini/kmeans_det_900.npy",
                 anchor_handler=dict(type="SparseBox3DKeyPointsGenerator"),
                 num_temp_instances=600 if temporal else -1,
                 confidence_decay=0.6,
@@ -272,7 +290,7 @@ model = dict(
                 type="InstanceBank",
                 num_anchor=100,
                 embed_dims=embed_dims,
-                anchor="data/kmeans/kmeans_map_100.npy",
+                anchor="data/kmeansmini/kmeans_map_100.npy",
                 anchor_handler=dict(type="SparsePoint3DKeyPointsGenerator"),
                 num_temp_instances=33 if temporal_map else -1,
                 confidence_decay=0.6,
@@ -402,15 +420,16 @@ model = dict(
             fut_mode=fut_mode,
             ego_fut_ts=ego_fut_ts,
             ego_fut_mode=ego_fut_mode,
-            motion_anchor=f'data/kmeans/kmeans_motion_{fut_mode}.npy',
-            plan_anchor=f'data/kmeans/kmeans_plan_{ego_fut_mode}.npy',
+            motion_anchor=f'data/kmeansmini/kmeans_motion_{fut_mode}.npy',
+            plan_anchor=f'data/kmeansmini/kmeans_plan_{ego_fut_mode}.npy',
             embed_dims=embed_dims,
             decouple_attn=decouple_attn_motion,
             instance_queue=dict(
                 type="InstanceQueue",
                 embed_dims=embed_dims,
                 queue_length=queue_length,
-                tracking_threshold=0.2,
+                # tracking_threshold=0.2,
+                tracking_threshold=0.05,
                 feature_map_scale=(input_shape[1]/strides[-1], input_shape[0]/strides[-1]),
             ),
             operation_order=(
@@ -507,7 +526,7 @@ model = dict(
 
 # ================== data ========================
 dataset_type = "NuScenes3DDataset"
-data_root = "data/nuscenes/"
+data_root = "data/nuscenesmini/"
 anno_root = "data/infos/" if version == 'trainval' else "data/infos/mini/"
 file_client_args = dict(backend="disk")
 
@@ -545,10 +564,12 @@ train_pipeline = [
         permute=True,
     ),
     dict(type="NuScenesSparse4DAdaptor"),
+    dict(type="WrapPointsToDataContainer", keys=['points'], cpu_only=True),
     dict(
         type="Collect",
         keys=[
             "img",
+            "points",
             "timestamp",
             "projection_mat",
             "image_wh",
@@ -570,13 +591,24 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(type="LoadMultiViewImageFromFiles", to_float32=True),
+    
+    dict(
+        type="LoadPointsFromFile",
+        coord_type="LIDAR",
+        load_dim=5,
+        use_dim=5,
+        file_client_args=file_client_args,
+    ),
+
     dict(type="ResizeCropFlipImage"),
     dict(type="NormalizeMultiviewImage", **img_norm_cfg),
     dict(type="NuScenesSparse4DAdaptor"),
+    dict(type="WrapPointsToDataContainer", keys=['points'], cpu_only=True),
     dict(
         type="Collect",
         keys=[
             "img",
+            "points",
             "timestamp",
             "projection_mat",
             "image_wh",
@@ -616,7 +648,7 @@ eval_pipeline = [
 ]
 
 input_modality = dict(
-    use_lidar=False,
+    use_lidar=True,
     use_camera=True,
     use_radar=False,
     use_map=False,
@@ -629,7 +661,8 @@ data_basic_config = dict(
     classes=class_names,
     map_classes=map_class_names,
     modality=input_modality,
-    version="v1.0-trainval",
+    # version="v1.0-trainval",
+    version="v1.0-mini",
 )
 eval_config = dict(
     **data_basic_config,
@@ -710,8 +743,10 @@ eval_mode = dict(
     with_map=True,
     with_motion=True,
     with_planning=True,
-    tracking_threshold=0.2,
-    motion_threshhold=0.2,
+    # tracking_threshold=0.2,
+    # motion_threshhold=0.2,
+    tracking_threshold=0.05,
+    motion_threshhold=0.05,
 )
 evaluation = dict(
     interval=num_iters_per_epoch*checkpoint_epoch_interval,

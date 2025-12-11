@@ -66,7 +66,8 @@ class DeformableFeatureAggregation(BaseModule):
                 f"but got {embed_dims} and {num_groups}"
             )
         self.group_dims = int(embed_dims / num_groups)
-        self.embed_dims = embed_dims
+        # self.embed_dims = embed_dims
+        self.embed_dims = 512
         self.num_levels = num_levels
         self.num_groups = num_groups
         self.num_cams = num_cams
@@ -88,7 +89,8 @@ class DeformableFeatureAggregation(BaseModule):
             )
         else:
             self.temp_module = None
-        self.output_proj = Linear(embed_dims, embed_dims)
+        # self.output_proj = Linear(embed_dims, embed_dims)
+        self.output_proj = Linear(512, embed_dims)
 
         if use_camera_embed:
             self.camera_encoder = Sequential(
@@ -142,6 +144,7 @@ class DeformableFeatureAggregation(BaseModule):
                     self.num_groups,
                 )
             )
+
             features = DAF(*feature_maps, points_2d, weights).reshape(
                 bs, num_anchor, self.embed_dims
             )
@@ -281,7 +284,7 @@ class DenseDepthNet(BaseModule):
         self.depth_layers = nn.ModuleList()
         for i in range(num_depth_layers):
             self.depth_layers.append(
-                nn.Conv2d(embed_dims, 1, kernel_size=1, stride=1, padding=0)
+                nn.Conv2d(embed_dims*2, 1, kernel_size=1, stride=1, padding=0)
             )
 
     def forward(self, feature_maps, focal=None, gt_depths=None):

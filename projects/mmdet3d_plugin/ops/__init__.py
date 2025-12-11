@@ -1,5 +1,4 @@
 import torch
-
 from .deformable_aggregation import DeformableAggregationFunction
 
 
@@ -20,8 +19,12 @@ def deformable_aggregation_function(
 
 
 def feature_maps_format(feature_maps, inverse=False):
+    # print(f"=== feature_maps_format called ===")
+    # print(f"inverse: {inverse}")
+    # print(f"Input type: {type(feature_maps)}")
     if inverse:
         col_feats, spatial_shape, scale_start_index = feature_maps
+        # print("spatial_shape_true:", spatial_shape.shape)
         num_cams, num_levels = spatial_shape.shape[:2]
 
         split_size = spatial_shape[..., 0] * spatial_shape[..., 1]
@@ -57,6 +60,7 @@ def feature_maps_format(feature_maps, inverse=False):
         formated = [feature_maps_format(x) for x in feature_maps]
         col_feats = torch.cat([x[0] for x in formated], dim=1)
         spatial_shape = torch.cat([x[1] for x in formated], dim=0)
+        # print("spatial_shape_false:", spatial_shape.shape)
         scale_start_index = torch.cat([x[2] for x in formated], dim=0)
         return [col_feats, spatial_shape, scale_start_index]
 
@@ -90,3 +94,6 @@ def feature_maps_format(feature_maps, inverse=False):
         scale_start_index,
     ]
     return feature_maps
+
+
+
