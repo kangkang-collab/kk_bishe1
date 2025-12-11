@@ -18,4 +18,8 @@ __pycache__/
 *.so
 
 job_scripts/
-temp_ops/
+temp_ops/.vscode/
+vis_out/
+viscamera/
+workcamera/
+=2.0.0rc4,
